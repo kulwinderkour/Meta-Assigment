@@ -1,0 +1,90 @@
+name: healthcare-appointment-coordination-env
+version: "1.0.0"
+description: >
+  An AI agent environment where the agent acts as a clinic appointment coordinator.
+  The agent receives patient requests and must schedule each patient with the correct
+  specialist, respecting urgency ordering and detecting undeclared emergencies.
+metadata:
+  domain: healthcare
+  deterministic: true
+  transport: http
+  framework: fastapi
+  compatibility:
+    huggingface_spaces: true
+    openenv: true
+
+resources:
+  vcpu: 2
+  memory: 8gb
+
+server:
+  app: environment.server:app
+  entrypoint: uvicorn environment.server:app --host 0.0.0.0 --port ${PORT:-7860} --workers 1
+  host: 0.0.0.0
+  port: 7860
+  port_env: PORT
+  workers: 1
+  health_endpoint: /health
+  endpoints:
+    reset:
+      method: POST
+      path: /reset
+      request_model: ResetRequest
+      response_model: SchedulerObservation
+    step:
+      method: POST
+      path: /step
+      request_model: SchedulerAction
+      response_model: StepResponse
+    state:
+      method: GET
+      path: /state
+      response_model: SchedulerState
+
+tasks:
+  - name: easy
+    description: Single patient, one correct specialist, no conflicts.
+    max_steps: 10
+    seed: 42
+
+  - name: medium
+    description: Four patients with different specialties and urgency levels; scarce cardiology slots.
+    max_steps: 25
+    seed: 42
+
+  - name: hard
+    description: >
+      Eight patients across two days — emergency escalation required, limited specialists,
+      rescheduling trap, and a specialty-routing dilemma.
+    max_steps: 40
+    seed: 42
+
+supported_tasks:
+  - easy
+  - medium
+  - hard
+
+schemas:
+  reset_request:
+    task_name: string
+    seed: integer|null
+  scheduler_action:
+    model: environment.models.SchedulerAction
+  scheduler_observation:
+    model: environment.models.SchedulerObservation
+  scheduler_state:
+    model: environment.models.SchedulerState
+  step_response:
+    model: environment.models.StepResponse
+
+evaluation:
+  score_range: [0.0, 1.0]
+  grading: programmatic
+  inference_timeout_minutes: 20
+  reproducible: true
+
+env_vars:
+  required:
+    - API_BASE_URL
+    - MODEL_NAME
+    - HF_TOKEN
